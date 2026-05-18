@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+
+# Virtual environments
+cv_env/
+.venv/
+env/
+venv/
+
+# Data and outputs
+data/
+outputs/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Distribution
+dist/
+build/
