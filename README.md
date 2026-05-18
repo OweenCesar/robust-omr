@@ -28,6 +28,3 @@ Notes
 -----
 - Raw input images go in `data/raw/`.
 - Outputs will be written to `outputs/` (see `outputs/annotated/` and `outputs/warped/`).
-- There's a `cv_env/` virtual environment included; you can use it instead of creating a new one.
-
-If you want, I can add a short usage example or a license file next.
