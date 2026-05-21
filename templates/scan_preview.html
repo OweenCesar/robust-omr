@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Review Scan - Robust OMR{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <h1>Review scan</h1>
+      <p>{{ pending.test_name }} - Version {{ pending.variation_name }}</p>
+    </div>
+    <a class="button" href="{{ url_for('scan', variation_id=pending.variation_id) }}">Retake</a>
+  </div>
+
+  {% if pending.warnings %}
+    <div class="warning-box">
+      {% for warning in pending.warnings %}
+        <p>{{ warning }}</p>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <section class="summary-strip" aria-label="Scan summary">
+    <div><strong>{{ pending.summary.score_percent }}%</strong><span>Score</span></div>
+    <div><strong>{{ pending.summary.correct }}</strong><span>Correct</span></div>
+    <div><strong>{{ pending.summary.wrong }}</strong><span>Wrong</span></div>
+    <div><strong>{{ pending.summary.blank }}</strong><span>Blank</span></div>
+    <div><strong>{{ pending.summary.multiple }}</strong><span>Multiple</span></div>
+    <div><strong>{{ pending.summary.unclear }}</strong><span>Unclear</span></div>
+  </section>
+
+  <section class="scan-review-layout">
+    <div>
+      <h2>Annotated scan</h2>
+      <img
+        class="annotated-image"
+        src="{{ url_for('media_file', kind='annotated', filename=pending.annotated_filename) }}"
+        alt="Annotated scan result"
+      >
+      <p class="helper-text">
+        Blur {{ pending.quality.blur_score }}, brightness {{ pending.quality.brightness }},
+        perspective correction {% if pending.quality.used_perspective_correction %}used{% else %}not used{% endif %}.
+      </p>
+    </div>
+
+    <form method="post" action="{{ url_for('scan_save') }}" class="review-form">
+      <div class="field-grid">
+        <label class="field">
+          <span>Student name</span>
+          <input type="text" name="student_name" value="{{ pending.student_name }}">
+        </label>
+        <label class="field">
+          <span>Student ID</span>
+          <input type="text" name="student_id" value="{{ pending.student_id }}">
+        </label>
+      </div>
+
+      <div class="table-wrap compact-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Q</th>
+              <th>Detected</th>
+              <th>Status</th>
+              <th>Correct</th>
+              <th>Final</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for q in range(1, pending.question_count + 1) %}
+              {% set key = q|string %}
+              {% set detail = pending.details[key] %}
+              {% set detected = pending.detected_answers[key] %}
+              {% set detected_selected = detected.selected %}
+              {% set final_selected = detail.student_answer if detail.student_answer is string else "" %}
+              <tr class="status-{{ detail.status }}">
+                <td>{{ q }}</td>
+                <td>
+                  {% if detected_selected %}
+                    {{ detected_selected if detected_selected is string else detected_selected|join(", ") }}
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td>{{ detail.status }}</td>
+                <td>{{ detail.correct_answer }}</td>
+                <td>
+                  <select name="final_{{ q }}">
+                    <option value="">Blank</option>
+                    {% for option in options %}
+                      <option value="{{ option }}" {% if final_selected == option %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="form-actions sticky-actions">
+        <button class="button primary" type="submit">Save Result</button>
+        <a class="button secondary" href="{{ url_for('scan', variation_id=pending.variation_id) }}">Retake</a>
+      </div>
+    </form>
+  </section>
+{% endblock %}

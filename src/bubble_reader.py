@@ -2,67 +2,77 @@ import cv2
 import numpy as np
 
 
-def create_circular_mask(shape, center, radius):
+def create_rectangular_mask(shape, center, box_size, inner_scale=0.68):
     """
-    Creates a circular mask for a bubble.
+    Create a filled rectangular mask for one square answer box.
+
+    The printed answer box has a dark border even when the student leaves it
+    blank. If we measured the full box, that border would increase the mark
+    score for every answer. To avoid that, the mask covers only the inner area
+    of the square. A real student mark should darken this inner area, while the
+    printed border mostly stays outside the measurement zone.
     """
     height, width = shape[:2]
+    x, y = center
+
+    inner_size = int(box_size * inner_scale)
+    half = max(1, inner_size // 2)
+
+    left = max(0, x - half)
+    right = min(width, x + half)
+    top = max(0, y - half)
+    bottom = min(height, y + half)
 
     mask = np.zeros((height, width), dtype=np.uint8)
-
-    cv2.circle(
-        mask,
-        center,
-        radius,
-        255,
-        thickness=-1
-    )
+    mask[top:bottom, left:right] = 255
 
     return mask
 
 
-def read_single_bubble(thresholded_image, center, radius):
+def read_single_box(thresholded_image, center, box_size):
     """
-    Reads one bubble by calculating the ratio of dark pixels inside it.
-    
-    Since the thresholded image uses THRESH_BINARY_INV:
-    - black marks become white pixels
-    - white paper becomes black pixels
-    
-    So countNonZero tells us how much ink/mark is inside the bubble.
+    Read one square answer box by measuring dark pixels inside its center.
+
+    The thresholded image is expected to use THRESH_BINARY_INV, so black ink
+    becomes white pixels and white paper becomes black pixels. This means
+    countNonZero gives us a simple "how much ink is here?" score.
     """
     x, y = center
 
-    mask = create_circular_mask(
+    mask = create_rectangular_mask(
         thresholded_image.shape,
         center=(x, y),
-        radius=radius
+        box_size=box_size,
     )
 
-    bubble_pixels = cv2.bitwise_and(thresholded_image, thresholded_image, mask=mask)
+    answer_pixels = cv2.bitwise_and(thresholded_image, thresholded_image, mask=mask)
 
     total_area = np.count_nonzero(mask)
-    marked_area = cv2.countNonZero(bubble_pixels)
+    marked_area = cv2.countNonZero(answer_pixels)
 
     mark_ratio = marked_area / total_area if total_area > 0 else 0
 
     return mark_ratio
 
 
-def read_all_bubbles(thresholded_image, bubble_centers, radius):
+def read_all_boxes(thresholded_image, box_centers, box_size):
     """
-    Reads all bubbles and returns mark ratios for every question and option.
+    Read every square answer box for every question.
+
+    The returned values are ratios from 0.0 to 1.0. A blank box should be near
+    0.0. A fully filled box should be much higher. The interpretation function
+    turns those raw ratios into statuses like valid, blank, multiple, or unclear.
     """
     results = {}
 
-    for question, options in bubble_centers.items():
+    for question, options in box_centers.items():
         results[question] = {}
 
         for option, center in options.items():
-            mark_ratio = read_single_bubble(
+            mark_ratio = read_single_box(
                 thresholded_image=thresholded_image,
                 center=center,
-                radius=radius
+                box_size=box_size
             )
 
             results[question][option] = mark_ratio
@@ -71,23 +81,28 @@ def read_all_bubbles(thresholded_image, bubble_centers, radius):
 
 
 def interpret_answers(
-    bubble_results,
-    blank_threshold=0.18,
-    marked_threshold=0.35,
-    ambiguity_margin=0.08
+    box_results,
+    blank_threshold=0.08,
+    marked_threshold=0.18,
+    ambiguity_margin=0.05
 ):
     """
-    Converts bubble mark ratios into answers.
+    Convert raw answer-box mark ratios into teacher-readable answer statuses.
 
-    Possible statuses:
+    The scanner produces one numeric mark ratio for every answer box. This
+    function turns those numbers into decisions:
+
     - valid
     - blank
     - multiple
     - unclear
+
+    These thresholds are deliberately separated from the box-reading code so
+    they can be tuned later without changing the image sampling logic.
     """
     interpreted = {}
 
-    for question, options in bubble_results.items():
+    for question, options in box_results.items():
         sorted_options = sorted(
             options.items(),
             key=lambda item: item[1],

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Robust OMR Demo{% endblock %}
+
+{% block content %}
+  <section class="hero-panel">
+    <h1>OMR webapp</h1>
+    <p>Create a test, print the sheet, scan completed student sheets with a phone, and save scores locally.</p>
+  </section>
+
+  <section class="action-grid" aria-label="Main actions">
+    <a class="action-card" href="{{ url_for('new_test') }}">
+      <span>Create Test</span>
+      <small>Set 10-40 questions and the answer key.</small>
+    </a>
+    <a class="action-card" href="{{ url_for('tests_index') }}">
+      <span>Print Sheet</span>
+      <small>Open a saved test and print its OMR sheet.</small>
+    </a>
+    <a class="action-card" href="{{ url_for('scan') }}">
+      <span>Scan Sheet</span>
+      <small>Use the phone camera or upload a photo.</small>
+    </a>
+    <a class="action-card" href="{{ url_for('results_index') }}">
+      <span>View Results</span>
+      <small>Review saved scores and export CSV.</small>
+    </a>
+  </section>
+
+  <section class="two-column">
+    <div>
+      <h2>Recent tests</h2>
+      {% if tests %}
+        <div class="list">
+          {% for test in tests[:5] %}
+            <a class="list-row" href="{{ url_for('test_detail', test_id=test.id) }}">
+              <span>{{ test.name }}</span>
+              <small>{{ test.question_count }} questions, {{ test.variation_count }} variation{% if test.variation_count != 1 %}s{% endif %}</small>
+            </a>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="empty">No tests yet.</p>
+      {% endif %}
+    </div>
+
+    <div>
+      <h2>Recent results</h2>
+      {% if results %}
+        <div class="list">
+          {% for result in results[:5] %}
+            <a class="list-row" href="{{ url_for('results_index') }}">
+              <span>{{ result.student_name or result.student_id or "Unnamed student" }}</span>
+              <small>{{ result.test_name }} - {{ result.summary.score_percent }}%</small>
+            </a>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="empty">No scans saved yet.</p>
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}

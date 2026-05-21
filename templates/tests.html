@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Tests - Robust OMR{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <h1>Tests</h1>
+      <p>Create, print, and scan saved OMR tests.</p>
+    </div>
+    <a class="button primary" href="{{ url_for('new_test') }}">Create Test</a>
+  </div>
+
+  {% if tests %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Test</th>
+            <th>Questions</th>
+            <th>Variations</th>
+            <th>Created</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for test in tests %}
+            <tr>
+              <td>{{ test.name }}</td>
+              <td>{{ test.question_count }}</td>
+              <td>{{ test.variation_count }}</td>
+              <td>{{ test.created_at }}</td>
+              <td><a class="button small" href="{{ url_for('test_detail', test_id=test.id) }}">Open</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">No tests yet. Create one to start scanning.</p>
+  {% endif %}
+{% endblock %}

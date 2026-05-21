@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Print Sheet - {{ test.name }}{% endblock %}
+
+{% block content %}
+  <div class="print-toolbar no-print">
+    <div>
+      <h1>Print OMR sheet</h1>
+      <p>{{ test.name }} - Version {{ variation.name }} - {{ test.question_count }} questions</p>
+    </div>
+    <div class="toolbar-actions">
+      <button class="button primary" type="button" onclick="window.print()">Print</button>
+      <a class="button" href="{{ url_for('scan', variation_id=variation.id) }}">Scan This Test</a>
+    </div>
+  </div>
+
+  <section class="sheet-page" aria-label="Printable answer sheet">
+    <svg
+      class="answer-sheet-svg"
+      viewBox="0 0 {{ layout.width }} {{ layout.height }}"
+      role="img"
+      aria-label="OMR answer sheet for {{ test.name }}"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect x="0" y="0" width="{{ layout.width }}" height="{{ layout.height }}" fill="#ffffff"/>
+
+      {% for marker in layout.markers %}
+        <image
+          href="{{ marker.data_url }}"
+          x="{{ marker.x }}"
+          y="{{ marker.y }}"
+          width="{{ marker.size }}"
+          height="{{ marker.size }}"
+          preserveAspectRatio="none"
+          image-rendering="pixelated"
+        />
+      {% endfor %}
+
+      <text x="500" y="95" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">
+        OMR Answer Sheet
+      </text>
+      <text x="500" y="132" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20">
+        {{ test.name }} - Version {{ variation.name }}
+      </text>
+      <text x="500" y="162" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16">
+        {{ test.question_count }} questions - Fill one box completely for each question
+      </text>
+
+      <text x="110" y="215" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">Name:</text>
+      <line x1="180" y1="211" x2="455" y2="211" stroke="#000" stroke-width="2"/>
+      <text x="550" y="215" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">Student ID:</text>
+      <line x1="665" y1="211" x2="885" y2="211" stroke="#000" stroke-width="2"/>
+
+      <text x="110" y="260" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">Class:</text>
+      <line x1="172" y1="256" x2="455" y2="256" stroke="#000" stroke-width="2"/>
+      <text x="550" y="260" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">Date:</text>
+      <line x1="610" y1="256" x2="885" y2="256" stroke="#000" stroke-width="2"/>
+
+      <rect x="110" y="290" width="775" height="44" fill="none" stroke="#000" stroke-width="2"/>
+      <text x="128" y="318" font-family="Arial, Helvetica, sans-serif" font-size="16">
+        Fill one square completely. Keep all four coded corner markers visible in the photo.
+      </text>
+
+      {% for column in layout.columns %}
+        <text x="{{ column.label_x }}" y="{{ column.header_y }}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">Q</text>
+
+        {% for x in column.option_xs %}
+          <text x="{{ x }}" y="{{ column.header_y }}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">
+            {{ layout.options[loop.index0] }}
+          </text>
+        {% endfor %}
+
+        {% for row in column.rows %}
+          <text x="{{ row.label_x }}" y="{{ row.y + 6 }}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700">
+            {{ row.number }}
+          </text>
+
+          {% for option in row.options %}
+            <rect
+              x="{{ option.x - (layout.box_size / 2) }}"
+              y="{{ row.y - (layout.box_size / 2) }}"
+              width="{{ layout.box_size }}"
+              height="{{ layout.box_size }}"
+              rx="2"
+              ry="2"
+              fill="none"
+              stroke="#000000"
+              stroke-width="2.4"
+            />
+          {% endfor %}
+        {% endfor %}
+      {% endfor %}
+
+      <text x="500" y="1245" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="15">
+        Teacher app: select {{ test.name }} / Version {{ variation.name }} before scanning.
+      </text>
+      <text x="500" y="1278" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="13">
+        Test ID {{ test.id }} - Variation ID {{ variation.id }}
+      </text>
+    </svg>
+  </section>
+{% endblock %}

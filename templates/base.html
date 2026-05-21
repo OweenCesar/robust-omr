@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Robust OMR{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <header class="site-header no-print">
+    <a class="brand" href="{{ url_for('index') }}">Robust OMR</a>
+    <nav class="top-nav" aria-label="Main navigation">
+      <a href="{{ url_for('new_test') }}">Create</a>
+      <a href="{{ url_for('tests_index') }}">Tests</a>
+      <a href="{{ url_for('scan') }}">Scan</a>
+      <a href="{{ url_for('results_index') }}">Results</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="messages no-print">
+          {% for category, message in messages %}
+            <p class="message message-{{ category }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

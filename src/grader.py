@@ -1,17 +1,11 @@
-import json
-
-
-def load_answer_key(path: str) -> dict:
-    """
-    Loads the answer key from JSON.
-    """
-    with open(path, "r", encoding="utf-8") as file:
-        return json.load(file)
-
-
 def grade_answers(interpreted_answers, answer_key):
     """
     Grades interpreted OMR answers against the answer key.
+
+    interpreted_answers comes from the scanner and includes both the selected
+    answer and a status. Only a status of "valid" can count as correct. Blank,
+    multiple, and unclear answers are kept separate so the teacher can see what
+    needs review instead of getting a single unexplained wrong count.
     """
     correct = 0
     wrong = 0
@@ -21,7 +15,7 @@ def grade_answers(interpreted_answers, answer_key):
 
     detailed_results = {}
 
-    for question, correct_answer in answer_key.items():
+    for question, correct_answer in sorted(answer_key.items(), key=lambda item: int(item[0])):
         result = interpreted_answers.get(question)
 
         if result is None:
@@ -55,11 +49,11 @@ def grade_answers(interpreted_answers, answer_key):
             "correct_answer": correct_answer,
             "is_correct": is_correct,
             "status": status,
-            "confidence": result["confidence"]
+            "confidence": result.get("confidence", 0)
         }
 
     total = len(answer_key)
-    score_percent = round((correct / total) * 100, 2)
+    score_percent = round((correct / total) * 100, 2) if total else 0
 
     summary = {
         "correct": correct,

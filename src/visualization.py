@@ -1,13 +1,18 @@
 import cv2
 
 
-def draw_bubble_debug(image, bubble_centers, interpreted_answers, radius):
+def draw_box_debug(image, box_centers, interpreted_answers, box_size):
     """
-    Draws circles around bubbles and labels the detected answers.
+    Draw detected answer boxes and status labels on a warped sheet image.
+
+    The annotated image is not required for grading, but it is very useful in a
+    real marking workflow. If a teacher asks "why did it mark this answer?",
+    the colored overlay shows exactly where the detector looked.
     """
     annotated = image.copy()
+    half = box_size // 2
 
-    for question, options in bubble_centers.items():
+    for question, options in box_centers.items():
         result = interpreted_answers.get(question, {})
         selected = result.get("selected")
         status = result.get("status")
@@ -18,26 +23,32 @@ def draw_bubble_debug(image, bubble_centers, interpreted_answers, radius):
             color = (180, 180, 180)
 
             if status == "valid" and selected == option:
-                color = (0, 255, 0)
+                color = (0, 180, 0)
 
             elif status == "unclear" and selected == option:
-                color = (0, 255, 255)
+                color = (0, 180, 255)
 
-            elif status == "multiple" and option in selected:
-                color = (0, 165, 255)
+            elif status == "multiple" and isinstance(selected, list) and option in selected:
+                color = (0, 120, 255)
 
-            cv2.circle(annotated, (x, y), radius, color, 2)
+            cv2.rectangle(
+                annotated,
+                (x - half, y - half),
+                (x + half, y + half),
+                color,
+                2,
+            )
 
         first_x, first_y = list(options.values())[0]
         cv2.putText(
             annotated,
             f"Q{question}: {status}",
-            (first_x - 170, first_y + 6),
+            (first_x - 95, first_y + 5),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.45,
-            (0, 0, 255),
+            0.38,
+            (0, 0, 220),
             1,
-            cv2.LINE_AA
+            cv2.LINE_AA,
         )
 
     return annotated

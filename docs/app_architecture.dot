@@ -1,0 +1,180 @@
+digraph RobustOMR {
+  graph [
+    rankdir=LR,
+    bgcolor="white",
+    fontname="Arial",
+    fontsize=12,
+    label="Robust OMR Webapp Architecture",
+    labelloc=t,
+    pad=0.35,
+    nodesep=0.55,
+    ranksep=0.75
+  ];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="Arial",
+    fontsize=10,
+    fillcolor="#ffffff",
+    color="#2f3b32"
+  ];
+
+  edge [
+    fontname="Arial",
+    fontsize=9,
+    color="#46524a",
+    arrowsize=0.8
+  ];
+
+  teacher [
+    label="Teacher phone or computer\nBrowser UI",
+    fillcolor="#e7f3ec"
+  ];
+
+  printed_sheet [
+    label="Printed OMR sheet\nSVG from sheet.html\nArUco corner markers",
+    fillcolor="#fff7d1"
+  ];
+
+  student_sheet [
+    label="Completed student sheet\nMarked answer boxes",
+    fillcolor="#fff7d1"
+  ];
+
+  subgraph cluster_frontend {
+    label="Frontend files";
+    color="#cfd8d2";
+    fillcolor="#f7faf8";
+    style="rounded,filled";
+
+    base_html [label="templates/base.html\nShared layout/nav"];
+    test_form_html [label="templates/test_form.html\nCreate test + answer key"];
+    sheet_html [label="templates/sheet.html\nPrintable SVG answer sheet"];
+    scan_html [label="templates/scan.html\nCamera/file upload form"];
+    preview_html [label="templates/scan_preview.html\nReview detected answers"];
+    results_html [label="templates/results.html\nSaved result table + CSV link"];
+    css [label="static/styles.css\nMobile-first styling"];
+    js [label="static/app.js\nAnswer rows, camera capture,\noptional image compression"];
+  }
+
+  subgraph cluster_flask {
+    label="app.py Flask routes";
+    color="#cfd8d2";
+    fillcolor="#f9fbfa";
+    style="rounded,filled";
+
+    create_app [label="create_app()\nConfigures Flask, DB, folders, routes"];
+    index_route [label="/\nindex()"];
+    new_test_route [label="/tests/new\nnew_test()"];
+    test_detail_route [label="/tests/<id>\ntest_detail()"];
+    new_variation_route [label="/variations/new\nnew_variation()"];
+    print_route [label="/sheet\nprint_sheet()"];
+    scan_route [label="/scan\nscan()"];
+    preview_route [label="/scan/preview\nscan_preview()"];
+    save_route [label="/scan/save\nscan_save()"];
+    results_route [label="/results\nresults_index()"];
+    csv_route [label="/results.csv\nresults_csv()"];
+  }
+
+  subgraph cluster_storage {
+    label="src/db.py and local storage";
+    color="#cfd8d2";
+    fillcolor="#f7faf8";
+    style="rounded,filled";
+
+    init_db [label="init_db()\nCreate/migrate SQLite tables"];
+    create_test_db [label="create_test_with_variation()\nSave test + answer key"];
+    create_variation_db [label="create_variation()\nSave extra version"];
+    list_tests_db [label="list_tests(), get_test(),\nlist_variations(), get_variation()"];
+    save_result_db [label="save_scan_result()\nPersist confirmed result"];
+    list_results_db [label="list_results()\nDecode saved result JSON"];
+    sqlite [label="data/omr_demo.sqlite3\nLocal database", shape=cylinder, fillcolor="#edf1ec"];
+    upload_dir [label="data/uploads/\nOriginal uploaded scans", shape=folder, fillcolor="#edf1ec"];
+    annotated_dir [label="outputs/annotated/\nDebug overlays", shape=folder, fillcolor="#edf1ec"];
+  }
+
+  subgraph cluster_layout {
+    label="src/sheet_layout.py";
+    color="#cfd8d2";
+    fillcolor="#f9fbfa";
+    style="rounded,filled";
+
+    constants [label="Sheet constants\n1000x1400, marker IDs,\nbox positions"];
+    sheet_context_fn [label="sheet_context()\nTemplate-ready SVG layout"];
+    centers_fn [label="generate_answer_box_centers()\nDetection coordinates"];
+    marker_data_fn [label="aruco_marker_data_url()\nEmbedded PNG markers"];
+    marker_points_fn [label="marker_corner_points()\nDestination homography points"];
+  }
+
+  subgraph cluster_omr {
+    label="OpenCV OMR pipeline";
+    color="#cfd8d2";
+    fillcolor="#f7faf8";
+    style="rounded,filled";
+
+    process_scan_fn [label="src/omr_engine.py\nprocess_scan()"];
+    load_bytes_fn [label="preprocessing.load_image_from_bytes()\nDecode uploaded JPEG/PNG"];
+    quality_fn [label="compute_blur_score()\ncompute_brightness()"];
+    detect_markers_fn [label="detect_corner_markers()\nDecode 4 ArUco IDs"];
+    warp_fn [label="warp_to_sheet()\nHomography + perspective correction"];
+    threshold_fn [label="threshold_dark_marks()\nAdaptive threshold"];
+    read_boxes_fn [label="bubble_reader.read_all_boxes()\nMeasure ink ratio in each box"];
+    interpret_fn [label="bubble_reader.interpret_answers()\nvalid/blank/multiple/unclear"];
+    grade_fn [label="grader.grade_answers()\nScore against answer key"];
+    draw_debug_fn [label="visualization.draw_box_debug()\nAnnotated overlay image"];
+  }
+
+  teacher -> index_route [label="opens app"];
+  index_route -> base_html;
+  new_test_route -> test_form_html;
+  test_form_html -> js [label="show 10-40 rows"];
+  new_test_route -> create_test_db [label="POST test form"];
+  create_test_db -> sqlite;
+
+  test_detail_route -> list_tests_db;
+  new_variation_route -> create_variation_db;
+  create_variation_db -> sqlite;
+
+  print_route -> sheet_context_fn;
+  sheet_context_fn -> constants;
+  sheet_context_fn -> marker_data_fn;
+  sheet_context_fn -> centers_fn;
+  print_route -> sheet_html;
+  sheet_html -> printed_sheet [label="browser prints"];
+  printed_sheet -> student_sheet [label="student marks"];
+
+  scan_route -> scan_html;
+  scan_html -> js [label="camera + compression"];
+  teacher -> scan_route [label="scan page"];
+  student_sheet -> preview_route [label="photo upload"];
+  preview_route -> process_scan_fn;
+
+  process_scan_fn -> load_bytes_fn;
+  process_scan_fn -> quality_fn;
+  process_scan_fn -> detect_markers_fn;
+  detect_markers_fn -> marker_points_fn [label="expected IDs/corners"];
+  process_scan_fn -> warp_fn;
+  warp_fn -> marker_points_fn;
+  process_scan_fn -> threshold_fn;
+  process_scan_fn -> centers_fn;
+  process_scan_fn -> read_boxes_fn;
+  read_boxes_fn -> interpret_fn;
+  process_scan_fn -> grade_fn;
+  process_scan_fn -> draw_debug_fn;
+  draw_debug_fn -> annotated_dir;
+  preview_route -> upload_dir;
+  preview_route -> preview_html;
+
+  save_route -> grade_fn [label="grade teacher-corrected final answers"];
+  save_route -> save_result_db;
+  save_result_db -> sqlite;
+
+  results_route -> list_results_db;
+  list_results_db -> sqlite;
+  results_route -> results_html;
+  csv_route -> list_results_db;
+
+  css -> base_html [style=dashed, label="styles all pages"];
+  js -> scan_html [style=dashed, label="camera behavior"];
+}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}{{ test.name }} - Robust OMR{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <h1>{{ test.name }}</h1>
+      <p>{{ test.question_count }} questions, A-D options.</p>
+    </div>
+    <a class="button" href="{{ url_for('new_variation', test_id=test.id) }}">Add Variation</a>
+  </div>
+
+  {% if variations %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Variation</th>
+            <th>Created</th>
+            <th>Print</th>
+            <th>Scan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for variation in variations %}
+            <tr>
+              <td>Version {{ variation.name }}</td>
+              <td>{{ variation.created_at }}</td>
+              <td>
+                <a class="button small" href="{{ url_for('print_sheet', test_id=test.id, variation_id=variation.id) }}">Print Sheet</a>
+              </td>
+              <td>
+                <a class="button small" href="{{ url_for('scan', variation_id=variation.id) }}">Scan</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">No variations saved yet.</p>
+  {% endif %}
+
+  <section class="question-list">
+    <h2>Saved questions</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Q</th>
+            <th>Question text</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for q in range(1, test.question_count + 1) %}
+            {% set key = q|string %}
+            <tr>
+              <td>{{ q }}</td>
+              <td>{{ question_texts.get(key, "") or "No text saved" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

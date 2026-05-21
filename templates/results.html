@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Results - Robust OMR{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <h1>Results</h1>
+      <p>Saved scores from confirmed scans.</p>
+    </div>
+    {% if results %}
+      <a class="button" href="{{ url_for('results_csv') }}">Export CSV</a>
+    {% endif %}
+  </div>
+
+  {% if results %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Student</th>
+            <th>Test</th>
+            <th>Score</th>
+            <th>Correct</th>
+            <th>Blank</th>
+            <th>Review</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for result in results %}
+            <tr>
+              <td>{{ result.created_at }}</td>
+              <td>
+                <strong>{{ result.student_name or "Unnamed" }}</strong>
+                {% if result.student_id %}
+                  <small>{{ result.student_id }}</small>
+                {% endif %}
+              </td>
+              <td>{{ result.test_name }} - Version {{ result.variation_name }}</td>
+              <td>{{ result.summary.score_percent }}%</td>
+              <td>{{ result.summary.correct }} / {{ result.summary.total }}</td>
+              <td>{{ result.summary.blank }}</td>
+              <td>
+                {% if result.annotated_image_path %}
+                  <a class="button small" href="{{ url_for('media_file', kind='annotated', filename=result.annotated_image_path) }}">Image</a>
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">No results saved yet.</p>
+    <a class="button primary" href="{{ url_for('scan') }}">Scan Sheet</a>
+  {% endif %}
+{% endblock %}

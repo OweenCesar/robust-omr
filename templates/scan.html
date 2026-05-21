@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Sheet - Robust OMR{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <h1>Scan sheet</h1>
+      <p>Use the phone camera through ngrok, or upload a photo from this computer.</p>
+    </div>
+  </div>
+
+  {% if not choices %}
+    <p class="empty">Create a test before scanning.</p>
+    <a class="button primary" href="{{ url_for('new_test') }}">Create Test</a>
+  {% else %}
+    <form class="form-panel scan-form" method="post" action="{{ url_for('scan_preview') }}" enctype="multipart/form-data" data-scan-form>
+      <label class="field">
+        <span>Test variation</span>
+        <select name="variation_id" required>
+          <option value="">Choose test</option>
+          {% for choice in choices %}
+            <option
+              value="{{ choice.variation_id }}"
+              {% if selected_variation and selected_variation.id == choice.variation_id %}selected{% endif %}
+            >
+              {{ choice.label }}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <div class="field-grid">
+        <label class="field">
+          <span>Student name</span>
+          <input type="text" name="student_name" placeholder="Optional">
+        </label>
+        <label class="field">
+          <span>Student ID</span>
+          <input type="text" name="student_id" placeholder="Optional">
+        </label>
+      </div>
+
+      <section class="camera-panel" aria-label="Camera capture">
+        <video class="camera-video" autoplay playsinline muted data-camera-video></video>
+        <canvas class="camera-canvas" data-camera-canvas hidden></canvas>
+        <img class="camera-preview" data-camera-preview alt="Captured sheet preview" hidden>
+        <input type="hidden" name="captured_image_data" data-captured-image>
+
+        <div class="camera-actions">
+          <button class="button" type="button" data-start-camera>Start Camera</button>
+          <button class="button" type="button" data-capture-photo disabled>Capture Photo</button>
+        </div>
+        <p class="helper-text" data-camera-status>Camera preview will appear here if the browser allows access.</p>
+      </section>
+
+      <label class="check-row">
+        <input type="checkbox" name="compress_image" value="1" checked data-compress-image>
+        <span>
+          Compress image before upload
+          <small>Recommended for ngrok and mobile data. Turn off only when you need the original image.</small>
+        </span>
+      </label>
+
+      <label class="field">
+        <span>Or choose image file</span>
+        <input type="file" name="sheet_image" accept="image/*" capture="environment">
+      </label>
+
+      <div class="form-actions">
+        <button class="button primary" type="submit">Process Scan</button>
+      </div>
+    </form>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if mode == "variation" %}Add Variation{% else %}Create Test{% endif %} - Robust OMR
+{% endblock %}
+
+{% block content %}
+  <div class="page-heading">
+    <div>
+      <h1>{% if mode == "variation" %}Add variation{% else %}Create test{% endif %}</h1>
+      <p>Choose the correct answer for each question. The printable sheet will match this setup.</p>
+    </div>
+  </div>
+
+  <form class="form-panel" method="post" data-answer-key-form>
+    {% if mode == "create" %}
+      <label class="field">
+        <span>Test name</span>
+        <input type="text" name="name" value="{{ request.form.get('name', '') }}" placeholder="Example: Math Quiz 1" required>
+      </label>
+
+      <label class="field">
+        <span>Number of questions</span>
+        <input
+          type="number"
+          name="question_count"
+          min="10"
+          max="40"
+          value="{{ question_count }}"
+          required
+          data-question-count
+        >
+      </label>
+    {% else %}
+      <input type="hidden" name="question_count" value="{{ question_count }}" data-question-count>
+      <div class="read-only-info">
+        <strong>{{ test.name }}</strong>
+        <span>{{ question_count }} questions</span>
+      </div>
+    {% endif %}
+
+    <label class="field">
+      <span>Variation name</span>
+      <input type="text" name="variation_name" value="{{ variation_name }}" maxlength="20" required>
+    </label>
+
+    <section class="answer-key" aria-label="Answer key">
+      <div class="answer-key-header">
+        <span>Question</span>
+        <span>Question text</span>
+        {% for option in options %}
+          <span>{{ option }}</span>
+        {% endfor %}
+      </div>
+
+      {% for q in range(1, 41) %}
+        {% set key = q|string %}
+        <div class="answer-row" data-answer-row="{{ q }}">
+          <span class="question-number">{{ q }}</span>
+          {% if mode == "create" %}
+            <input
+              class="question-text-input"
+              type="text"
+              name="question_text_{{ q }}"
+              value="{{ question_texts.get(key, '') }}"
+              placeholder="Optional question text"
+            >
+          {% else %}
+            <span class="question-text-display">{{ question_texts.get(key, "Question " ~ q) }}</span>
+          {% endif %}
+          {% for option in options %}
+            <label class="radio-box">
+              <input
+                type="radio"
+                name="answer_{{ q }}"
+                value="{{ option }}"
+                {% if answer_key.get(key) == option %}checked{% endif %}
+              >
+              <span>{{ option }}</span>
+            </label>
+          {% endfor %}
+        </div>
+      {% endfor %}
+    </section>
+
+    <div class="form-actions">
+      <button class="button primary" type="submit">
+        {% if mode == "variation" %}Save Variation{% else %}Create Test{% endif %}
+      </button>
+      <a class="button secondary" href="{{ url_for('tests_index') }}">Cancel</a>
+    </div>
+  </form>
+{% endblock %}
