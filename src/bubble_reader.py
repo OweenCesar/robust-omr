@@ -21,22 +21,26 @@ def create_circular_mask(shape, center, radius):
     return mask
 
 
-def read_single_bubble(thresholded_image, center, radius):
+def read_single_bubble(thresholded_image, center, radius, inner_radius_ratio=0.55):
     """
     Reads one bubble by calculating the ratio of dark pixels inside it.
-    
+
     Since the thresholded image uses THRESH_BINARY_INV:
     - black marks become white pixels
     - white paper becomes black pixels
     
     So countNonZero tells us how much ink/mark is inside the bubble.
+
+    The mask uses the inner part of the bubble, which avoids counting the
+    printed circle outline as a student's mark.
     """
     x, y = center
+    inner_radius = max(2, int(round(radius * inner_radius_ratio)))
 
     mask = create_circular_mask(
         thresholded_image.shape,
         center=(x, y),
-        radius=radius
+        radius=inner_radius
     )
 
     bubble_pixels = cv2.bitwise_and(thresholded_image, thresholded_image, mask=mask)
@@ -49,7 +53,7 @@ def read_single_bubble(thresholded_image, center, radius):
     return mark_ratio
 
 
-def read_all_bubbles(thresholded_image, bubble_centers, radius):
+def read_all_bubbles(thresholded_image, bubble_centers, radius, inner_radius_ratio=0.55):
     """
     Reads all bubbles and returns mark ratios for every question and option.
     """
@@ -62,7 +66,8 @@ def read_all_bubbles(thresholded_image, bubble_centers, radius):
             mark_ratio = read_single_bubble(
                 thresholded_image=thresholded_image,
                 center=center,
-                radius=radius
+                radius=radius,
+                inner_radius_ratio=inner_radius_ratio
             )
 
             results[question][option] = mark_ratio
@@ -72,9 +77,9 @@ def read_all_bubbles(thresholded_image, bubble_centers, radius):
 
 def interpret_answers(
     bubble_results,
-    blank_threshold=0.18,
+    blank_threshold=0.08,
     marked_threshold=0.35,
-    ambiguity_margin=0.08
+    ambiguity_margin=0.12
 ):
     """
     Converts bubble mark ratios into answers.
@@ -95,7 +100,7 @@ def interpret_answers(
         )
 
         best_option, best_score = sorted_options[0]
-        second_option, second_score = sorted_options[1]
+        second_score = sorted_options[1][1] if len(sorted_options) > 1 else 0
 
         marked_options = [
             option for option, score in options.items()
@@ -114,14 +119,17 @@ def interpret_answers(
             interpreted[question] = {
                 "selected": marked_options,
                 "status": "multiple",
+                "review_reason": "multiple_marks",
                 "confidence": round(best_score, 3),
                 "scores": options
             }
 
-        elif best_score - second_score < ambiguity_margin:
+        elif best_score < marked_threshold or best_score - second_score < ambiguity_margin:
+            review_reason = "weak_mark" if best_score < marked_threshold else "ambiguous_mark"
             interpreted[question] = {
                 "selected": best_option,
                 "status": "unclear",
+                "review_reason": review_reason,
                 "confidence": round(best_score - second_score, 3),
                 "scores": options
             }

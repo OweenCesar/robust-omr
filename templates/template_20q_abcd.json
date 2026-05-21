@@ -4,13 +4,32 @@
   "warped_height": 1400,
   "questions": 20,
   "options": ["A", "B", "C", "D"],
-  "bubble_radius": 18,
+  "bubble_radius": 13,
+  "inner_radius_ratio": 0.55,
 
-  "bubble_layout": {
-    "start_x": 350,
-    "start_y": 260,
-    "option_gap_x": 80,
-    "question_gap_y": 45
+  "bubble_blocks": [
+    {
+      "start_question": 1,
+      "questions": 10,
+      "start_x": 242,
+      "start_y": 421,
+      "option_gap_x": 45,
+      "question_gap_y": 46
+    },
+    {
+      "start_question": 11,
+      "questions": 10,
+      "start_x": 698,
+      "start_y": 421,
+      "option_gap_x": 45,
+      "question_gap_y": 46
+    }
+  ],
+
+  "thresholds": {
+    "blank": 0.08,
+    "marked": 0.35,
+    "ambiguity_margin": 0.12
   },
 
   "corner_markers": {
