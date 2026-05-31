@@ -19,5 +19,3 @@ The notebook uses images from `samples/` and shows the output of:
 - Gaussian blur
 - Canny edge detection
 - blank debug image creation
-
-If you use the included environment, select `cv_env` as the notebook kernel.
