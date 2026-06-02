@@ -1,0 +1,10 @@
+For the sheets from Tamaulipas :
+     - They are scanned, not taked from a 'phone perspective'.
+     - Huge dataset (6 GB)
+     - https://data.mendeley.com/datasets/djmynjwjpy/1
+     
+
+For the sheet written in arabic: 
+     - Scanned, smaller dataset
+     - https://sites.google.com/view/mcq-dataset
+     

@@ -26,3 +26,10 @@ outputs/
 # Distribution
 dist/
 build/
+
+# Local runtime config
+.config/
+.streamlit/credentials.toml
+
+# Presentation exports
+presentation.pdf
