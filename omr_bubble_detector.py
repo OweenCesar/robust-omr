@@ -3,7 +3,8 @@ OpenCV OMR bubble detector for phone photos.
 
 Goal of this module:
 - Detect the printed sheet/frame from a camera image.
-- Correct perspective using the long black frame/corner marks when possible.
+- Correct perspective using ArUco markers when present, with the older
+  printed-frame/page-contour logic kept as fallback.
 - Detect ONLY bubbles inside the answer area, Student ID, and Test ID areas.
 - Return bubble coordinates and simple fill scores. This is NOT grading yet.
 
@@ -34,6 +35,18 @@ OPTIONS = ["A", "B", "C", "D", "E"]
 WARP_W = 1000
 WARP_H = 1414
 FRAME_MARGIN = 70
+
+# New sheet templates use four OpenCV ArUco markers from DICT_4X4_50.
+# Their centers sit on the printed-frame corners, so mapping marker centers to
+# FRAME_MARGIN produces the same warped coordinate system as the old frame path.
+ARUCO_DICT_NAME = "DICT_4X4_50"
+ARUCO_FRAME_MARKERS = {
+    0: "top_left",
+    1: "top_right",
+    2: "bottom_right",
+    3: "bottom_left",
+}
+ARUCO_CORNER_ORDER = [0, 1, 2, 3]
 
 # Fallback normalized ROIs on the warped page: (x1, y1, x2, y2).
 # The primary path below detects these regions from the printed rectangles.
@@ -139,6 +152,148 @@ def _resolve_roi(
 # -----------------------------------------------------------------------------
 # Perspective correction
 # -----------------------------------------------------------------------------
+
+def _get_aruco_dictionary() -> Optional[Any]:
+    """Return the ArUco dictionary used by the generated LaTeX templates."""
+    aruco = getattr(cv2, "aruco", None)
+    if aruco is None or not hasattr(aruco, ARUCO_DICT_NAME):
+        return None
+
+    dictionary_id = getattr(aruco, ARUCO_DICT_NAME)
+    if hasattr(aruco, "getPredefinedDictionary"):
+        return aruco.getPredefinedDictionary(dictionary_id)
+    if hasattr(aruco, "Dictionary_get"):
+        return aruco.Dictionary_get(dictionary_id)
+    return None
+
+
+def _detect_aruco_frame_corners(image_bgr: np.ndarray) -> Optional[Tuple[np.ndarray, Dict[str, Any]]]:
+    """
+    Detect the four ArUco markers and return frame-corner points.
+
+    The LaTeX template places marker centers exactly at the intended printed
+    frame corners. Using centers instead of marker outer corners makes the warp
+    independent of each marker's internal rotation/corner ordering.
+    """
+    dictionary = _get_aruco_dictionary()
+    aruco = getattr(cv2, "aruco", None)
+    if dictionary is None or aruco is None:
+        return None
+
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    if hasattr(aruco, "DetectorParameters"):
+        parameters = aruco.DetectorParameters()
+    elif hasattr(aruco, "DetectorParameters_create"):
+        parameters = aruco.DetectorParameters_create()
+    else:
+        parameters = None
+
+    if parameters is not None and hasattr(aruco, "CORNER_REFINE_SUBPIX"):
+        parameters.cornerRefinementMethod = aruco.CORNER_REFINE_SUBPIX
+
+    if hasattr(aruco, "ArucoDetector"):
+        detector = aruco.ArucoDetector(dictionary, parameters)
+        corners, ids, _ = detector.detectMarkers(gray)
+    elif hasattr(aruco, "detectMarkers"):
+        corners, ids, _ = aruco.detectMarkers(gray, dictionary, parameters=parameters)
+    else:
+        return None
+
+    if ids is None or len(ids) == 0:
+        return None
+
+    found: Dict[int, Dict[str, Any]] = {}
+    for marker_corners, marker_id_value in zip(corners, ids.flatten()):
+        marker_id = int(marker_id_value)
+        if marker_id not in ARUCO_FRAME_MARKERS:
+            continue
+
+        pts = np.asarray(marker_corners, dtype=np.float32).reshape(4, 2)
+        perimeter = float(sum(np.linalg.norm(pts[(idx + 1) % 4] - pts[idx]) for idx in range(4)))
+        center = pts.mean(axis=0)
+
+        # If a duplicate ID is detected, keep the larger instance. It is usually
+        # the real printed marker rather than a tiny false positive.
+        if marker_id not in found or perimeter > float(found[marker_id]["perimeter"]):
+            found[marker_id] = {
+                "center": center,
+                "corners": pts,
+                "perimeter": perimeter,
+            }
+
+    if any(marker_id not in found for marker_id in ARUCO_CORNER_ORDER):
+        return None
+
+    frame_corners = np.array([found[marker_id]["center"] for marker_id in ARUCO_CORNER_ORDER], dtype=np.float32)
+    marker_centers = {
+        ARUCO_FRAME_MARKERS[marker_id]: found[marker_id]["center"].astype(float).round(2).tolist()
+        for marker_id in ARUCO_CORNER_ORDER
+    }
+    marker_corners = {
+        ARUCO_FRAME_MARKERS[marker_id]: found[marker_id]["corners"].astype(float).round(2).tolist()
+        for marker_id in ARUCO_CORNER_ORDER
+    }
+    meta = {
+        "orientation_source": "aruco_marker_ids",
+        "aruco_dictionary": ARUCO_DICT_NAME,
+        "aruco_marker_ids": {
+            ARUCO_FRAME_MARKERS[marker_id]: marker_id
+            for marker_id in ARUCO_CORNER_ORDER
+        },
+        "aruco_marker_centers_original": marker_centers,
+        "aruco_marker_corners_original": marker_corners,
+    }
+    return frame_corners, meta
+
+
+def _is_plausible_aruco_frame(corners: np.ndarray, image_shape: Tuple[int, int]) -> bool:
+    """Reject impossible ArUco quadrilaterals before applying the warp."""
+    h, w = image_shape[:2]
+    tl, tr, br, bl = np.asarray(corners, dtype=np.float32).reshape(4, 2)
+    top_w = float(np.linalg.norm(tr - tl))
+    bottom_w = float(np.linalg.norm(br - bl))
+    left_h = float(np.linalg.norm(bl - tl))
+    right_h = float(np.linalg.norm(br - tr))
+    avg_w = (top_w + bottom_w) / 2.0
+    avg_h = (left_h + right_h) / 2.0
+    area = float(cv2.contourArea(np.asarray([tl, tr, br, bl], dtype=np.float32).reshape(-1, 1, 2)))
+
+    # Use the ID-defined edge order here. A sideways sheet is still a valid
+    # portrait sheet semantically, even though its geometric bounding box is wide.
+    if area < 0.04 * h * w:
+        return False
+    if min(top_w, bottom_w) / (max(top_w, bottom_w) + 1e-6) < 0.42:
+        return False
+    if min(left_h, right_h) / (max(left_h, right_h) + 1e-6) < 0.42:
+        return False
+    return 0.90 <= avg_h / (avg_w + 1e-6) <= 2.20
+
+
+def _warp_via_aruco_markers(image_bgr: np.ndarray) -> Optional[Tuple[np.ndarray, Dict[str, Any]]]:
+    """
+    Warp using the ArUco marker IDs when the new templates are present.
+
+    IDs 0, 1, 2, and 3 define top-left, top-right, bottom-right, and
+    bottom-left. That gives both perspective correction and true sheet
+    orientation before the rest of the OMR pipeline runs.
+    """
+    detected = _detect_aruco_frame_corners(image_bgr)
+    if detected is None:
+        return None
+
+    frame_corners, aruco_meta = detected
+    if not _is_plausible_aruco_frame(frame_corners, image_bgr.shape[:2]):
+        return None
+
+    warped, meta = _warp_from_corners(
+        image_bgr,
+        frame_corners,
+        method="aruco_markers",
+        map_printed_frame_to_margin=True,
+    )
+    meta.update(aruco_meta)
+    return warped, meta
+
 
 def _find_page_by_contour(image_bgr: np.ndarray) -> Optional[np.ndarray]:
     """Fallback: detect the whole white paper as a quadrilateral."""
@@ -417,6 +572,10 @@ def warp_sheet(image_bgr: np.ndarray) -> Tuple[np.ndarray, Dict[str, Any]]:
     Returns:
         warped_bgr, metadata
     """
+    aruco_recovered = _warp_via_aruco_markers(image_bgr)
+    if aruco_recovered is not None:
+        return aruco_recovered
+
     frame_corners = _find_printed_frame_corners(image_bgr)
     if frame_corners is not None and _is_plausible_printed_frame(frame_corners, image_bgr.shape[:2]):
         return _warp_from_corners(
@@ -1032,25 +1191,48 @@ def _best_regular_subset(
 
 def _fill_score(gray: np.ndarray, x: float, y: float, r: float) -> float:
     """
-    Simple darkness score inside the bubble.
+    Estimate how strongly a bubble is marked, relative to nearby paper.
 
-    This is useful for later grading, but the current task is only detection.
+    A raw darkness score is sensitive to shadows: an empty bubble in a dark
+    corner can look more "filled" than it should. This score compares the
+    bubble interior with a small surrounding ring, so gradual lighting changes
+    mostly cancel out.
     """
     h, w = gray.shape[:2]
-    rr = max(3, int(round(r * 0.70)))
     cx, cy = int(round(x)), int(round(y))
-    x1, y1 = max(0, cx - rr), max(0, cy - rr)
-    x2, y2 = min(w, cx + rr + 1), min(h, cy + rr + 1)
+
+    inner_r = max(3, int(round(r * 0.72)))
+    annulus_inner_r = max(inner_r + 1, int(round(r * 1.05)))
+    annulus_outer_r = max(annulus_inner_r + 2, int(round(r * 1.55)))
+
+    x1, y1 = max(0, cx - annulus_outer_r), max(0, cy - annulus_outer_r)
+    x2, y2 = min(w, cx + annulus_outer_r + 1), min(h, cy + annulus_outer_r + 1)
     if x2 <= x1 or y2 <= y1:
         return 0.0
+
     patch = gray[y1:y2, x1:x2]
     yy, xx = np.ogrid[y1:y2, x1:x2]
-    mask = (xx - cx) ** 2 + (yy - cy) ** 2 <= rr ** 2
-    if mask.sum() == 0:
+    dist2 = (xx - cx) ** 2 + (yy - cy) ** 2
+    inner_mask = dist2 <= inner_r ** 2
+    annulus_mask = (dist2 >= annulus_inner_r ** 2) & (dist2 <= annulus_outer_r ** 2)
+    if inner_mask.sum() == 0 or annulus_mask.sum() == 0:
         return 0.0
-    # Normalize locally to be less affected by shadows.
-    vals = patch[mask].astype(np.float32)
-    return float(np.clip((255.0 - vals.mean()) / 255.0, 0.0, 1.0))
+
+    inner_vals = patch[inner_mask].astype(np.float32)
+    background_vals = patch[annulus_mask].astype(np.float32)
+
+    # Use a bright-ish percentile instead of the mean so neighboring bubble
+    # outlines or tiny bits of text in the annulus do not pull the paper level
+    # down too much.
+    background_level = float(np.percentile(background_vals, 70))
+    contrast = np.clip(background_level - inner_vals, 0.0, 255.0)
+    contrast_mean = float(contrast.mean() / 255.0)
+
+    # Filled marks darken many pixels, while printed letters usually darken only
+    # a small part of the bubble. Mixing in dark-pixel coverage helps separate
+    # a real fill from the printed A/B/C/D/E character.
+    dark_pixel_fraction = float(np.mean(inner_vals <= background_level - 35.0))
+    return float(np.clip(0.75 * contrast_mean + 0.25 * dark_pixel_fraction, 0.0, 1.0))
 
 
 # -----------------------------------------------------------------------------

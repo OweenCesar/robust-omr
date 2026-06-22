@@ -8,6 +8,7 @@ The current direction is a camera-based OMR reader for sheets with 10, 20, 30, 5
 
 `omr_bubble_detector.py` contains the production pipeline:
 
+- detect ArUco orientation markers on the newer sheets when present
 - normalize a phone photo of the sheet
 - recover the printed frame or paper contour
 - detect the header and answer regions from printed lines
@@ -18,6 +19,10 @@ The current direction is a camera-based OMR reader for sheets with 10, 20, 30, 5
 - flag blank, multiple, and unclear answers for review
 
 `streamlit_omr_detector.py` is the interactive demo app.
+
+## LaTeX Sheet Templates
+
+`latex/omr_sheet_base.tex`.
 
 ## Presentation Notebooks
 
